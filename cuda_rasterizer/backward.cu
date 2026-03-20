@@ -469,6 +469,7 @@ PerGaussianRenderCUDA(
 	const float* __restrict__ pixel_invDepths,
 	const float* __restrict__ dL_dpixels,
 	const float* __restrict__ dL_invdepths,
+	const float* __restrict__ dL_dtransmittance,
 	float3* __restrict__ dL_dmean2D,
 	float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
@@ -542,6 +543,7 @@ PerGaussianRenderCUDA(
 	float ard;
 	float dL_dpixel[C];
 	float dL_invdepth;
+	float dL_transmittance;
 	const float ddelx_dx = 0.5 * W;
 	const float ddely_dy = 0.5 * H;
 
@@ -560,6 +562,7 @@ PerGaussianRenderCUDA(
 		}
 		ard = my_warp.shfl_up(ard, 1);
 		dL_invdepth = my_warp.shfl_up(dL_invdepth, 1);
+		dL_transmittance = my_warp.shfl_up(dL_transmittance, 1);
 
 		// which pixel index should this thread deal with?
 		int idx = i - my_warp.thread_rank();
@@ -581,6 +584,7 @@ PerGaussianRenderCUDA(
 				dL_dpixel[ch] = dL_dpixels[ch * H * W + pix_id];
 			}
 			dL_invdepth = dL_invdepths[pix_id];
+			dL_transmittance = dL_dtransmittance[pix_id];
 		}
 
 		// do work
@@ -615,8 +619,9 @@ PerGaussianRenderCUDA(
 			Register_dL_dinvdepths += weight * dL_invdepth;
 			dL_dalpha += ((invd * T) - (1.0f / (1.0f - alpha)) * (-ard)) * dL_invdepth;
 
-			// Account for last sample for colour
+			// Account for last sample for colour and direct transmittance supervision
 			dL_dalpha += (-T_final / (1.0f - alpha)) * bg_dot_dpixel;
+			dL_dalpha += (-T_final / (1.0f - alpha)) * dL_transmittance;
 			T *= (1.0f - alpha);
 
 
@@ -753,6 +758,7 @@ void BACKWARD::render(
 	const float* pixel_invDepths,
 	const float* dL_dpixels,
 	const float* dL_invdepths,
+	const float* dL_dtransmittance,
 	float3* dL_dmean2D,
 	float4* dL_dconic2D,
 	float* dL_dopacity,
@@ -779,6 +785,7 @@ void BACKWARD::render(
 		pixel_invDepths,
 		dL_dpixels,
 		dL_invdepths,
+		dL_dtransmittance,
 		dL_dmean2D,
 		dL_dconic2D,
 		dL_dopacity,

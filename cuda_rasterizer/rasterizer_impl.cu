@@ -354,6 +354,7 @@ std::tuple<int,int> CudaRasterizer::Rasterizer::forward(
 	const float tan_fovx, float tan_fovy,
 	const bool prefiltered,
 	float* out_color,
+	float* out_transmittance,
 	float* invdepth,
 	bool antialiasing,
 	int* radii,
@@ -493,6 +494,7 @@ std::tuple<int,int> CudaRasterizer::Rasterizer::forward(
 		invdepth), debug)
 
 	CHECK_CUDA(cudaMemcpy(imgState.pixel_colors, out_color, sizeof(float) * width * height * NUM_CHANNELS_3DGS, cudaMemcpyDeviceToDevice), debug);
+	CHECK_CUDA(cudaMemcpy(out_transmittance, imgState.accum_alpha, sizeof(float) * width * height, cudaMemcpyDeviceToDevice), debug);
 	CHECK_CUDA(cudaMemcpy(imgState.pixel_invDepths, invdepth, sizeof(float) * width * height, cudaMemcpyDeviceToDevice), debug);
 	return std::make_tuple(num_rendered, bucket_sum);
 }
@@ -523,6 +525,7 @@ void CudaRasterizer::Rasterizer::backward(
 	char* sample_buffer,
 	const float* dL_dpix,
 	const float* dL_invdepths,
+	const float* dL_dtransmittance,
 	float* dL_dmean2D,
 	float* dL_dconic,
 	float* dL_dopacity,
@@ -580,6 +583,7 @@ void CudaRasterizer::Rasterizer::backward(
 		imgState.pixel_invDepths,
 		dL_dpix,
 		dL_invdepths,
+		dL_dtransmittance,
 		(float3*)dL_dmean2D,
 		(float4*)dL_dconic,
 		dL_dopacity,
